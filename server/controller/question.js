@@ -3,26 +3,19 @@ const { sendSuccess } = require('../lib/response');
 const QuestionService = require('../services/question.js');
 
 const create = async (req, res) => {
-    const { productName, productDescription, productImageUrl, isOrderIdTracking, questions } = req.body;
-
-    if (!productName || !productDescription || !productImageUrl || isOrderIdTracking === undefined || !Array.isArray(questions) || questions.length === 0) {
-        const err = new Error('Missing required fields: productName, productDescription, productImageUrl, isOrderIdTracking, questions (array)');
-        err.statusCode = 400;
-        throw err;
-    }
+    const { productName, productDescription, productImageUrl, isOrderIdTracking, reviewDate, excelFile, questions } = req.body;
 
     const payload = {
         productName,
         productDescription,
         productImageUrl,
         isOrderIdTracking,
-        reviewDate: isOrderIdTracking ? req.body.reviewDate : null,
-        excelFile: !isOrderIdTracking ? req.body.excelFile : null,
+        reviewDate: isOrderIdTracking ? reviewDate : null,
+        excelFile: !isOrderIdTracking ? excelFile : null,
         questions,
     };
 
     const resp = await QuestionService.create(payload);
-
     return sendSuccess(res, { message: 'Form submitted successfully!', data: resp, statusCode: 201 });
 };
 

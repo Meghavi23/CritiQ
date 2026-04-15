@@ -1,5 +1,8 @@
 const express = require('express');
 const cors = require('cors');
+const crypto = require('crypto');
+const { performance } = require('perf_hooks');
+const { format } = require('date-fns');
 const app = express();
 
 
@@ -14,7 +17,7 @@ const mongoSanitize = require('express-mongo-sanitize');
 const compression = require('express-compression');
 
 // lib / Utils imports
-const { createUserApiLog } = require('./middlewares/logs.js');
+const { createUserApiLog, auditPersonJson } = require('./middlewares/logs.js');
 const { isJsonStr } = require('./lib/helper.js');
 const ERROR_HANDLER = require('./lib/utils/utils.js');
 
@@ -91,14 +94,21 @@ app.use(mongoSanitize());
 // gzip compression
 app.use(compression());
 
-// -----------------------------Middleware for storing API logs into DB
+// -----------------------------Middleware for correlation ID + audit log initialisation
 app.use(function (req, res, next) {
-    // Do whatever you want this will execute when response is finished
+    const correlationId = crypto.randomUUID();
+    req.correlationId = correlationId;
+    res.setHeader('X-Correlation-Id', correlationId);
+
+    res.locals.startTimeStamp = performance.now();
+    res.locals.startTime = format(new Date(), 'HH:mm:ss.SSS');
+    res.locals.jsonReq = req.body;
+    res.locals.auditPDetail = auditPersonJson(req, correlationId);
+
     res.once('end', function () {
         createUserApiLog(req, res);
     });
 
-    // Save Response body
     const oldSend = res.send;
     res.send = function (data) {
         res.locals.resBody = isJsonStr(data) ? JSON.parse(data) : data;

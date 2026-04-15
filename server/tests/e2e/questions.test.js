@@ -1,10 +1,9 @@
 jest.mock('fastwinston', () => ({}));
-jest.mock('express-compression', () => () => (req, res, next) => next());
+jest.mock('express-compression', () => () => (_req, _res, next) => next());
 
-// Mock file-IO / DB-logging middleware to avoid noise in tests
 jest.mock('../../middlewares/logger.js', () => ({
-    expressLogger: (req, res, next) => next(),
-    expressErrorLogger: (err, req, res, next) => next(err),
+    expressLogger: (_req, _res, next) => next(),
+    expressErrorLogger: (err, _req, _res, next) => next(err),
 }));
 jest.mock('../../middlewares/logs.js', () => ({
     createUserApiLog: jest.fn(),
@@ -32,21 +31,68 @@ const validPayload = {
     ],
 };
 
+// ─── POST /api/questions ──────────────────────────────────────────────────────
+
 describe('POST /api/questions', () => {
-    it('should return 400 if required fields are missing', async () => {
+    it('should return 400 if required top-level fields are missing', async () => {
         const res = await request(app)
             .post('/api/questions')
             .send({ productName: 'Laptop Pro' });
 
         expect(res.status).toBe(400);
         expect(res.body.success).toBe(false);
-        expect(res.body.message).toMatch(/missing required fields/i);
+        expect(res.body.message).toBeDefined();
     });
 
-    it('should return 400 if questions is not an array or is empty', async () => {
+    it('should return 400 if questions array is empty', async () => {
         const res = await request(app)
             .post('/api/questions')
             .send({ ...validPayload, questions: [] });
+
+        expect(res.status).toBe(400);
+        expect(res.body.success).toBe(false);
+    });
+
+    it('should return 400 if a question has an invalid type', async () => {
+        const res = await request(app)
+            .post('/api/questions')
+            .send({
+                ...validPayload,
+                questions: [{ type: 'RATING', q: 'How do you rate it?' }],
+            });
+
+        expect(res.status).toBe(400);
+        expect(res.body.success).toBe(false);
+    });
+
+    it('should return 400 if an MCQ question has fewer than 2 options', async () => {
+        const res = await request(app)
+            .post('/api/questions')
+            .send({
+                ...validPayload,
+                questions: [{ type: 'MCQ', q: 'Pick one', options: ['Only one'] }],
+            });
+
+        expect(res.status).toBe(400);
+        expect(res.body.success).toBe(false);
+    });
+
+    it('should return 400 if a question is missing the q field', async () => {
+        const res = await request(app)
+            .post('/api/questions')
+            .send({
+                ...validPayload,
+                questions: [{ type: 'SHORT' }],
+            });
+
+        expect(res.status).toBe(400);
+        expect(res.body.success).toBe(false);
+    });
+
+    it('should return 400 if productImageUrl is not a valid URL', async () => {
+        const res = await request(app)
+            .post('/api/questions')
+            .send({ ...validPayload, productImageUrl: 'not-a-url' });
 
         expect(res.status).toBe(400);
         expect(res.body.success).toBe(false);
@@ -66,6 +112,8 @@ describe('POST /api/questions', () => {
         expect(saved.questions).toHaveLength(2);
     });
 });
+
+// ─── GET /api/questions/:id ───────────────────────────────────────────────────
 
 describe('GET /api/questions/:id', () => {
     it('should return 400 for an invalid MongoDB ObjectId', async () => {

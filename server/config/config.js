@@ -13,7 +13,7 @@ const config = {
             const raw = process.env.ROUTE || '/api';
             return raw.startsWith('/') ? raw : `/${raw}`;
         })(),
-        port: process.env.PORT || '5000',
+        port: process.env.PORT || '8000',
         nodeEnv: (process.env.NODE_ENV || 'DEV').toUpperCase(),
 
         // URL Links

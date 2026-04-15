@@ -1,47 +1,6 @@
+// Validation is now handled by the validate middleware (not the controller).
+// Unit tests mock the service layer and verify controller logic only.
 jest.mock('../../../services/customer');
-jest.mock('diamante-base', () => ({
-    Keypair: {
-        random: jest.fn(() => ({
-            publicKey: () => 'GPUBKEY123',
-            secret: () => 'SSECRET123',
-        })),
-        fromSecret: jest.fn(() => ({
-            publicKey: () => 'GPUBKEY123',
-        })),
-    },
-    TransactionBuilder: jest.fn().mockImplementation(() => ({
-        addOperation: jest.fn().mockReturnThis(),
-        setTimeout: jest.fn().mockReturnThis(),
-        build: jest.fn().mockReturnValue({ sign: jest.fn() }),
-    })),
-    Operation: { payment: jest.fn() },
-    Networks: { TESTNET: 'Test SDF Network ; September 2015' },
-}));
-jest.mock('diamante-sdk-js', () => ({
-    Horizon: {
-        Server: jest.fn().mockImplementation(() => ({
-            loadAccount: jest.fn().mockResolvedValue({
-                balances: [
-                    { asset_type: 'native', balance: '100.0000000' },
-                    { asset_type: 'credit_alphanum4', balance: '50.0000000' },
-                ],
-            }),
-            fetchBaseFee: jest.fn().mockResolvedValue(100),
-            submitTransaction: jest.fn().mockResolvedValue({ hash: 'txhash123' }),
-        })),
-    },
-    Asset: { native: jest.fn() },
-}));
-jest.mock('nodemailer', () => ({
-    createTransport: jest.fn().mockReturnValue({
-        sendMail: jest.fn((opts, cb) => cb(null, { response: '250 OK' })),
-    }),
-}));
-// node-fetch is dynamically imported; mock the module so it resolves correctly
-jest.mock('node-fetch', () => jest.fn().mockResolvedValue({
-    ok: true,
-    json: jest.fn().mockResolvedValue({ hash: 'friendbot-tx' }),
-}), { virtual: false });
 
 const CustomerController = require('../../../controller/customer');
 const CustomerService = require('../../../services/customer');
@@ -59,30 +18,34 @@ describe('CustomerController', () => {
     beforeEach(() => jest.clearAllMocks());
 
     describe('createCustomer', () => {
-        it('should call next with 400 if required fields are missing', async () => {
+        it('should delegate to CustomerService.createWithWallet and return 201', async () => {
+            CustomerService.createWithWallet.mockResolvedValue({});
+            const body = { name: 'Alice', companyEmail: 'alice@example.com', walletAddress: 'GALICE' };
+            const res = makeRes();
             const next = jest.fn();
-            await CustomerController.createCustomer(makeReq({ name: 'Alice' }), makeRes(), next);
-            expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 400 }));
+
+            await CustomerController.createCustomer(makeReq(body), res, next);
+
+            expect(CustomerService.createWithWallet).toHaveBeenCalledWith(body);
+            expect(res.status).toHaveBeenCalledWith(201);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({ success: true, message: expect.stringContaining('Signup') })
+            );
+            expect(next).not.toHaveBeenCalled();
         });
 
-        it('should call next with 400 if companyEmail is missing', async () => {
+        it('should call next if CustomerService.createWithWallet throws', async () => {
+            const dbError = new Error('DB error');
+            CustomerService.createWithWallet.mockRejectedValue(dbError);
             const next = jest.fn();
-            await CustomerController.createCustomer(
-                makeReq({ name: 'Alice', walletAddress: 'GXXX' }),
-                makeRes(),
-                next
-            );
-            expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 400 }));
+
+            await CustomerController.createCustomer(makeReq({ name: 'Alice' }), makeRes(), next);
+
+            expect(next).toHaveBeenCalledWith(dbError);
         });
     });
 
     describe('loginCustomer', () => {
-        it('should call next with 400 if walletAddress is missing', async () => {
-            const next = jest.fn();
-            await CustomerController.loginCustomer(makeReq({}), makeRes(), next);
-            expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 400 }));
-        });
-
         it('should call next with 401 if customer not found', async () => {
             CustomerService.getOne.mockResolvedValue(null);
             const next = jest.fn();
@@ -104,6 +67,7 @@ describe('CustomerController', () => {
 
             await CustomerController.loginCustomer(makeReq({ walletAddress: 'GABC' }), res, next);
 
+            expect(CustomerService.getOne).toHaveBeenCalledWith({ walletAddress: 'GABC' });
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith(
                 expect.objectContaining({ success: true, data: customer })
@@ -113,12 +77,18 @@ describe('CustomerController', () => {
     });
 
     describe('getBalance', () => {
-        it('should return 200 with all balances as an array', async () => {
+        it('should delegate to CustomerService.fetchBalance and return 200 with balances', async () => {
+            const mockBalances = [
+                { asset_type: 'native', balance: '100.0000000' },
+                { asset_type: 'credit_alphanum4', balance: '50.0000000' },
+            ];
+            CustomerService.fetchBalance.mockResolvedValue(mockBalances);
             const res = makeRes();
             const next = jest.fn();
 
             await CustomerController.getBalance(makeReq({}, { pkey: 'GPUBKEY123' }), res, next);
 
+            expect(CustomerService.fetchBalance).toHaveBeenCalledWith('GPUBKEY123');
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -130,8 +100,51 @@ describe('CustomerController', () => {
                     }),
                 })
             );
-            // Critical: res.json called exactly once (not once per balance item)
             expect(res.json).toHaveBeenCalledTimes(1);
+            expect(next).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('sendOtp', () => {
+        it('should delegate to CustomerService.sendOTPEmail and return 200', async () => {
+            CustomerService.sendOTPEmail.mockResolvedValue({});
+            const res = makeRes();
+            const next = jest.fn();
+
+            await CustomerController.sendOtp(
+                makeReq({ email: 'alice@example.com', otp: '123456' }),
+                res,
+                next
+            );
+
+            expect(CustomerService.sendOTPEmail).toHaveBeenCalledWith('alice@example.com', '123456');
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({ success: true, message: expect.stringContaining('OTP') })
+            );
+        });
+    });
+
+    describe('sendMoney', () => {
+        it('should delegate to CustomerService.executePayment and return 200 with payment info', async () => {
+            CustomerService.executePayment.mockResolvedValue({
+                amount: '1',
+                destination: 'GDEST123',
+                sender: 'GSEND123',
+            });
+            const res = makeRes();
+            const next = jest.fn();
+
+            await CustomerController.sendMoney(makeReq({ key: 'GDEST123' }), res, next);
+
+            expect(CustomerService.executePayment).toHaveBeenCalledWith('GDEST123');
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    success: true,
+                    message: expect.stringContaining('DIAM'),
+                })
+            );
             expect(next).not.toHaveBeenCalled();
         });
     });
@@ -150,24 +163,6 @@ describe('CustomerController', () => {
                 expect.objectContaining({ success: true, data: customers })
             );
             expect(next).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('sendOtp', () => {
-        it('should return 200 after sending OTP', async () => {
-            const res = makeRes();
-            const next = jest.fn();
-
-            await CustomerController.sendOtp(
-                makeReq({ email: 'alice@example.com', otp: '123456' }),
-                res,
-                next
-            );
-
-            expect(res.status).toHaveBeenCalledWith(200);
-            expect(res.json).toHaveBeenCalledWith(
-                expect.objectContaining({ success: true, message: expect.stringContaining('OTP') })
-            );
         });
     });
 });

@@ -7,7 +7,10 @@
     "install:all": "npm install --prefix client && npm install --prefix server",
     "start": "npm-run-all --parallel start:client start:server",
     "start:client": "npm run dev --prefix client",
-    "start:server": "npm start --prefix server"
+    "start:server": "npm start --prefix server",
+    "test": "npm test --prefix server",
+    "test:unit": "npm run test:unit --prefix server",
+    "test:e2e": "npm run test:e2e --prefix server"
   },
   "keywords": [],
   "author": "",

@@ -46,5 +46,5 @@ const QuestionSetSchema = new Schema({
   questions: [QuestionSchema]
 }, { timestamps: true });
 
-const QuestionSetModel = mongoose.model('QuestionSet', QuestionSetSchema);
+const QuestionSetModel = mongoose.models.QuestionSet || mongoose.model('QuestionSet', QuestionSetSchema);
 module.exports = QuestionSetModel;

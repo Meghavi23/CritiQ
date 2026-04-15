@@ -1,3 +1,9 @@
+const showErrorLogs = (process.env.NODE_ENV || 'DEV').toUpperCase() !== 'PROD';
+
+function isJsonObj(value) {
+  return Object.prototype.toString.call(value).toLowerCase() === '[object object]';
+}
+
 function isJsonStr(str) {
   if (typeof str !== "string") return false;
   try {

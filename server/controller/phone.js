@@ -1,29 +1,38 @@
-const { wrapAsync } = require("../lib/wrapAsync.js");
-const PhoneService = require("../services/phone.js");
+const { wrapAsync } = require('../lib/wrapAsync.js');
+const { sendSuccess } = require('../lib/response');
+const PhoneService = require('../services/phone.js');
 
 const create = async (req, res) => {
-  const { sid, id, phone } = req.body;
+    const { sid, id, phone } = req.body;
 
-  const resp = await PhoneService.create({ sid, id, phone });
+    if (!phone || !sid || id === undefined) {
+        const err = new Error('Missing required fields: phone, sid, id');
+        err.statusCode = 400;
+        throw err;
+    }
 
-  res.status(200).json({ message: "Phone added successfully", status: 1 });
+    await PhoneService.create({ sid, id, phone });
+
+    return sendSuccess(res, { message: 'Phone added successfully' });
 };
 
 const getOne = async (req, res) => {
-  const phone = req.query.phone;
+    const { phone } = req.query;
 
-  const data = await PhoneService.getOne({ phone: phone });
+    const data = await PhoneService.getOne({ phone });
 
-  if (!data) {
-    res.status(200).json({ status: 0 });
-  } else {
-    res.status(200).json({ status: 1, data: data });
-  }
+    if (!data) {
+        const err = new Error('Phone not found');
+        err.statusCode = 404;
+        throw err;
+    }
+
+    return sendSuccess(res, { message: 'Phone record found', data });
 };
 
 const PhoneController = {
-  create: wrapAsync(create),
-  getOne: wrapAsync(getOne),
+    create: wrapAsync(create),
+    getOne: wrapAsync(getOne),
 };
 
 module.exports = PhoneController;

@@ -1,40 +1,52 @@
-const { wrapAsync } = require("../lib/wrapAsync.js");
-const UserService = require("../services/user.js");
+const { wrapAsync } = require('../lib/wrapAsync.js');
+const { sendSuccess } = require('../lib/response');
+const CONSTANTS = require('../lib/contants');
+const UserService = require('../services/user.js');
 
 const create = async (req, res) => {
-  const payload = {
-    name: req.body.companyName,
-    email: req.body.companyEmail,
-    imageUrl: req.body.companyLogoUrl,
-    description: req.body.companyDescription,
-    walletAddress: req.body.walletAddress,
-    type: CONSTANTS.USER_ROLE.COMPANY,
-  };
+    const { companyName, companyEmail, walletAddress, companyDescription, companyLogoUrl } = req.body;
 
-  const resp = await UserService.create(payload);
+    if (!companyName || !companyEmail || !walletAddress || !companyDescription || !companyLogoUrl) {
+        const err = new Error('Missing required fields: companyName, companyEmail, walletAddress, companyDescription, companyLogoUrl');
+        err.statusCode = 400;
+        throw err;
+    }
 
-  res.status(200).json({ message: "Signup successful!" });
+    await UserService.create({
+        name: companyName,
+        email: companyEmail,
+        imageUrl: companyLogoUrl,
+        description: companyDescription,
+        walletAddress,
+        type: CONSTANTS.USER_ROLE.COMPANY,
+    });
+
+    return sendSuccess(res, { message: 'Signup successful!', statusCode: 201 });
 };
 
 const login = async (req, res) => {
-  const wallet = req.body.walletAddress;
+    const { walletAddress } = req.body;
 
-  const user = await UserService.getOne({ walletAddress: wallet });
+    if (!walletAddress) {
+        const err = new Error('walletAddress is required');
+        err.statusCode = 400;
+        throw err;
+    }
 
-  if (!user) {
-    res
-      .status(401)
-      .json({ message: "Wallet address not found. Please sign up first." });
+    const user = await UserService.getOne({ walletAddress });
 
-    return;
-  }
+    if (!user) {
+        const err = new Error('Wallet address not found. Please sign up first.');
+        err.statusCode = 401;
+        throw err;
+    }
 
-  res.status(200).json({ message: "Login successful!", user });
+    return sendSuccess(res, { message: 'Login successful!', data: user });
 };
 
 const UserController = {
-  create: wrapAsync(create),
-  login: wrapAsync(login),
+    create: wrapAsync(create),
+    login: wrapAsync(login),
 };
 
 module.exports = UserController;

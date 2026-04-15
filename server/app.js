@@ -10,7 +10,6 @@ const { expressLogger, expressErrorLogger } = require('./middlewares/logger.js')
 const requestIp = require('request-ip');
 const helmet = require('helmet');
 const xss = require('xss-clean');
-const fastwinston = require('fastwinston');
 const mongoSanitize = require('express-mongo-sanitize');
 const compression = require('express-compression');
 
@@ -20,10 +19,10 @@ const { isJsonStr } = require('./lib/helper.js');
 const ERROR_HANDLER = require('./lib/utils/utils.js');
 
 // Routes import
-// const usersRoute = require('./routes/users.js');
-// const questionsRoute = require('./routes/questions.js');
-// const customerRoute = require('./routes/customer.js');
-// const phoneRoute = require('./routes/phone.js');
+const usersRoute = require('./routes/users.js');
+const questionsRoute = require('./routes/questions.js');
+const customerRoute = require('./routes/customer.js');
+const phoneRoute = require('./routes/phone.js');
 const config = require('./config/config.js');
 
 
@@ -59,10 +58,6 @@ app.use(cors());
 // ----------------------------Middleware for printing logs on console
 app.use(expressLogger);
 // ----------------------------------Middleware Ended-------------------------------------
-
-// ----------------------------Middleware to Fix CORS Errors This Will Update The Incoming Request before sending to routes
-// Allow requests from all origins
-app.use(cors());
 
 // Configure Helmet
 app.use(helmet());
@@ -119,10 +114,10 @@ app.get(config.server.route + '/pingServer', (req, res) => {
 });
 
 
-// app.use(`${config.server.route}/customers`, customerRoute);
-// app.use(`${config.server.route}/users`, usersRoute);
-// app.use(`${config.server.route}/questions`, questionsRoute);
-// app.use(`${config.server.route}/phone`, phoneRoute);
+app.use(`${config.server.route}/customers`, customerRoute);
+app.use(`${config.server.route}/users`, usersRoute);
+app.use(`${config.server.route}/questions`, questionsRoute);
+app.use(`${config.server.route}/phone`, phoneRoute);
 
 // ----------------------------Middleware for catching 404 and forward to error handler
 app.use((req, res, next) => {
@@ -140,9 +135,9 @@ app.use((error, req, res, next) => {
 
     const sendErrorResponse = (status, message, desc, stack) => {
         res.status(status).json({
-            result: message,
+            success: false,
+            message: desc || message,
             code: status,
-            desc,
             stack: config.server.nodeEnv === 'PROD' ? null : stack
         });
     };

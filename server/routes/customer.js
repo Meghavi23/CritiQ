@@ -1,6 +1,5 @@
 const Router = require('express').Router;
 const CustomerController = require('../controller/customer');
-const { createCustomer, loginCustomer, sendOtp, getBalance, sendMoney, getAll } = require('../controller/customer');
 
 const router = Router();
 

@@ -10,5 +10,5 @@ const phoneSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const PhoneModel = mongoose.model('Phone', phoneSchema);
+const PhoneModel = mongoose.models.Phone || mongoose.model('Phone', phoneSchema);
 module.exports = PhoneModel;
